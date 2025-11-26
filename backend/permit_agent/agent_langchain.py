@@ -17,8 +17,8 @@ from typing import Optional, Literal
 from dotenv import load_dotenv
 
 from openai import OpenAI
-
 from azure.cosmos import CosmosClient
+from backend.history.cosmosdbservice import CosmosConversationClient
 
 load_dotenv()
 
@@ -123,35 +123,90 @@ def classify_query_intent(user_query: str) -> str:
     return "content_search"
 
 
+# async def get_permit_document_content(keyword: str):
+#     """
+#     Get relevant permit documents content from Azure AI Search with improved retrieval flow.
+#     First gets distinct documents from title search, then searches filtered content.
+
+#     Args:
+#         keyword (str): The keyword to search for relevant documents or filename from previous file list search.
+#     Returns:
+#         str: The relevant documents concatenated as a single string.
+#     """
+
+#     try:
+#         # Step 1: Get distinct documents from title search
+#         distinct_docs = await multi_search_client.get_distinct_documents(keyword, k=20)
+
+#         if not distinct_docs:
+#             # Fallback to original search if no distinct docs found
+#             search_results = await retrieval_client.semantic_ranking_search(
+#                 keyword=keyword,
+#                 k=10,
+#                 select_fields=["title", "content", "filepath", "chunkingId", "pagePriority"]
+#             )
+#         else:
+#             # Step 2: Search content with document filtering
+#             search_results = await multi_search_client.search_content_filtered(
+#                 keyword=keyword,
+#                 document_list=distinct_docs,
+#                 k=10
+#             )
+
+#         # Extract content with proper metadata
+#         results = []
+#         for doc in search_results.get('value', []):
+#             title = doc.get('title', '')
+#             content = doc.get('content', '')
+#             filepath = doc.get('filepath', '')
+#             chunking_id = doc.get('chunkingId', 0)
+            
+#             if title and content:
+#                 # Format with proper citation as expected by system message
+#                 results.append(f"[{filepath}, Page {chunking_id}]: {content}")
+        
+#         return "\n\n".join(results) if results else f"No relevant content found for: {keyword}"
+
+#     except Exception as e:
+#         print(f"Error in get_permit_document_content: {e}")
+#         # Fallback to original method
+#         search_results = await retrieval_client.semantic_ranking_search(
+#             keyword=keyword,
+#             k=10,
+#             select_fields=["title", "content", "filepath", "chunkingId", "pagePriority"]
+#         )
+
+#         # Extract content with proper metadata (fallback)
+#         results = []
+#         for doc in search_results.get('value', []):
+#             title = doc.get('title', '')
+#             content = doc.get('content', '')
+#             filepath = doc.get('filepath', '')
+#             chunking_id = doc.get('chunkingId', 0)
+            
+#             if title and content:
+#                 # Format with proper citation as expected by system message
+#                 results.append(f"[{filepath}, Page {chunking_id}]: {content}")
+        
+#         return "\n\n".join(results) if results else f"No relevant content found for: {keyword}"
+
 async def get_permit_document_content(keyword: str):
     """
-    Get relevant permit documents content from Azure AI Search with improved retrieval flow.
-    First gets distinct documents from title search, then searches filtered content.
-
+    Get relevant permit documents content directly from Azure AI Search content index.
+    
     Args:
-        keyword (str): The keyword to search for relevant documents or filename from previous file list search.
+        keyword (str): The keyword to search for relevant documents.
     Returns:
         str: The relevant documents concatenated as a single string.
     """
-
+    
     try:
-        # Step 1: Get distinct documents from title search
-        distinct_docs = await multi_search_client.get_distinct_documents(keyword, k=20)
-
-        if not distinct_docs:
-            # Fallback to original search if no distinct docs found
-            search_results = await retrieval_client.semantic_ranking_search(
-                keyword=keyword,
-                k=10,
-                select_fields=["title", "content", "filepath", "chunkingId", "pagePriority"]
-            )
-        else:
-            # Step 2: Search content with document filtering
-            search_results = await multi_search_client.search_content_filtered(
-                keyword=keyword,
-                document_list=distinct_docs,
-                k=10
-            )
+        # Direct search to content index without title filtering
+        search_results = await retrieval_client.semantic_ranking_search(
+            keyword=keyword,
+            k=10,
+            select_fields=["title", "content", "filepath", "chunkingId", "pagePriority"]
+        )
 
         # Extract content with proper metadata
         results = []
@@ -169,26 +224,7 @@ async def get_permit_document_content(keyword: str):
 
     except Exception as e:
         print(f"Error in get_permit_document_content: {e}")
-        # Fallback to original method
-        search_results = await retrieval_client.semantic_ranking_search(
-            keyword=keyword,
-            k=10,
-            select_fields=["title", "content", "filepath", "chunkingId", "pagePriority"]
-        )
-
-        # Extract content with proper metadata (fallback)
-        results = []
-        for doc in search_results.get('value', []):
-            title = doc.get('title', '')
-            content = doc.get('content', '')
-            filepath = doc.get('filepath', '')
-            chunking_id = doc.get('chunkingId', 0)
-            
-            if title and content:
-                # Format with proper citation as expected by system message
-                results.append(f"[{filepath}, Page {chunking_id}]: {content}")
-        
-        return "\n\n".join(results) if results else f"No relevant content found for: {keyword}"
+        return f"Error retrieving content for: {keyword}"
 
 
 @tool
